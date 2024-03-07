@@ -1,4 +1,4 @@
-# Redis Device Storage
+# Redis Device State
 
 ```python
 
