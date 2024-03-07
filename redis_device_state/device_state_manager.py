@@ -1,5 +1,5 @@
 __all__ = [
-    "DeviceStorage",
+    "DeviceStateManager",
 ]
 
 import logging
@@ -8,13 +8,16 @@ import time
 
 from typing import (
     Callable,
-    Iterable,
+    Iterator,
     Optional,
 )
 
 from redis import Redis
 
-from redis_device_state import pubsub
+from redis_device_state import (
+    StateNotFoundError,
+    pubsub,
+)
 from redis_device_state.device import Device
 from redis_device_state.models import Message
 
@@ -22,7 +25,7 @@ from redis_device_state.models import Message
 logger = logging.getLogger()
 
 
-class DeviceStorage:
+class DeviceStateManager:
     def __init__(
         self,
         redis_host: str = "localhost",
@@ -39,33 +42,42 @@ class DeviceStorage:
             **redis_params,
         )
 
-    def init_device(self, id: str):
+    def create_device(self, id: str):
         device = Device(
             id=id,
             redis=self._redis,
         )
-        self._register_device(device)
+        device.register()
 
         return device
 
-    def get_devices(self) -> Iterable[Device]:
+    def get_device(self, id: str):
+        device = Device(
+            id=id,
+            redis=self._redis,
+        )
+        device.get_state()
+
+        return device
+
+    def get_or_create_device(self, id: str):
+        try:
+            return self.get_device(id)
+        except StateNotFoundError:
+            return self.create_device(id)
+
+    def remove_device(self, id: str):
+        device = Device(
+            id=id,
+            redis=self._redis,
+        )
+        device.delete()
+
+        return device
+
+    def list_devices(self) -> Iterator[Device]:
         for key in self._redis.keys():
-            yield self.init_device(key.decode())
-
-    def remove_device(self, device: Device):
-        message = Message(
-            device_id=device.id,
-            event=pubsub.DELETED,
-            state=device.get_state().dump(),
-        )
-        topic = pubsub.format_topic(
-            device_id=message.device_id,
-            event=message.event,
-        )
-
-        self._redis.delete(device.id)
-
-        self._redis.publish(topic, message.dump())
+            yield self.get_device(key.decode())
 
     def subscribe(
         self,
@@ -105,6 +117,3 @@ class DeviceStorage:
             daemon=True,
         )
         thread.start()
-
-    def _register_device(self, device: Device):
-        device.get_state()
