@@ -67,6 +67,21 @@ class Device:
 
         return state
 
+    def update_state(self, **kwargs):
+        state = self.get_state()
+        state = state.update(**{
+            **state.data,
+            **kwargs,
+        })
+
+        self._set_state(state)
+        self._publish(
+            event=pubsub.UPDATED,
+            state=state,
+        )
+
+        return state
+
     def delete(self):
         state = self.get_state()
 
@@ -77,6 +92,12 @@ class Device:
         self._delete_state()
 
         return state
+
+    def publish(self, event_type: str, **kwargs):
+        self._publish(
+            event=event_type,
+            state=State.create(**kwargs),
+        )
 
     def _has_state(self) -> State:
         return self._fetch_state() is not None

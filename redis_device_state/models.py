@@ -54,8 +54,10 @@ class State(Model):
 
     @classmethod
     def _create_meta(cls):
+        ts = time.time()
+
         return Meta(
-            updated_at=time.time(),
+            updated_at=ts,
         )
 
 
